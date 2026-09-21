@@ -21,10 +21,11 @@ a public repository by a different author that this work builds on
 | 26 | 5.45 | **5.508** | +0.058 |
 | 29 | 5.57 | **5.71** | +0.14 |
 
-![The n=29 density: 137 D4-symmetrized rectangles at L=5.71, active rectangles shaded by weight](certificates/cert_n29_L571/solution.png)
+![The n=29 density: 137 D4-symmetrized rectangles at L=5.71, plotted on a magma color scale from black (zero) to pale yellow (highest density)](certificates/cert_n29_L571/solution.png)
 
 The `n = 29` density (137 rectangles, 69 with positive weight after solving)
-at `L = 5.71`. Darker shading is higher weight; see
+at `L = 5.71`, on a nonlinear `magma` color scale: black is zero density,
+brighter/paler (through purple and red to pale yellow) is higher. See
 [Verifying the certificates](#verifying-the-certificates) below for how this
 is turned into a rigorous bound.
 
