@@ -11,7 +11,7 @@ s(29) >= 571/100  = 5.71
 ```
 
 `n = 26` and `n = 29` improve on the point-mass certificates in
-[wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds),
+[wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds/tree/8ec3d79167ac422f21cc38d96e0dd7a8f5c22ed4),
 a public repository by a different author that this work builds on
 (`5.45` and `5.57` respectively). `n = 11` is not covered there.
 
@@ -53,9 +53,12 @@ LP state, `pricing.py` proposes new rectangles from the LP's dual, and
 cover. `engine.py` drives the cycle at fixed `L`; `advance.py` grows `L` and
 repairs feasibility between steps.
 
-Point atoms are a special case of this basis (a rectangle shrunk to a point),
-so the rectangle basis is strictly more expressive -- it is what makes the
-improved bounds above possible.
+This extends the same weighted-covering idea from point masses to
+positive-area basis functions. Point atoms can be viewed as a limiting case
+of the construction -- shrinking a positive-area uniform-density rectangle to
+a point turns the density into a measure rather than the same kind of
+function, so this is a limit, not literally a special case. The added
+flexibility is what makes the improved bounds above possible.
 
 ## Verifying the certificates
 
@@ -104,11 +107,12 @@ density's thin margin there. In-repo testing on a comparable certificate found
 `NOT VERIFIED` at both spacings tried (1/32 and 1/64). Treat this as a
 diagnostic tool for inspecting a converted point cloud, not as an expected
 independent confirmation. Clone
-[wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds)
-and pass its checker explicitly:
+[wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds/tree/8ec3d79167ac422f21cc38d96e0dd7a8f5c22ed4)
+and pass its checker explicitly (pinned to the commit this write-up refers to):
 
 ```bash
 git clone https://github.com/wand125/square-packing-bounds.git /tmp/square-packing-bounds
+git -C /tmp/square-packing-bounds checkout 8ec3d79167ac422f21cc38d96e0dd7a8f5c22ed4
 PYTHONPATH=src python3 src/point_export.py \
   certificates/cert_n29_L571/certified_candidate.json \
   --n 29 --spacing 1/64 --out /tmp/cert_n29_points.json \
@@ -163,8 +167,8 @@ docs/               continuous-density-certificate.ja.md: full rigor proof for t
 ## Attribution
 
 This repository extends the weighted unavoidable-set method used in
-[wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds)
-(a different author's public repository) from point atoms to a rectangle-density
+[wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds/tree/8ec3d79167ac422f21cc38d96e0dd7a8f5c22ed4)
+(a different author's public repository, pinned to the commit above) from point atoms to a rectangle-density
 basis. See that repository's own README for attribution of the underlying method
 to Walter Stromquist, Hiroshi Nagamochi, Sam Burns, and Gustavo Massaccesi, and
 to [jlevy/squares](https://github.com/jlevy/squares). No code from
