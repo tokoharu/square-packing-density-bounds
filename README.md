@@ -95,7 +95,14 @@ approximation accepted within tolerance.
 Cross-check: `src/point_export.py` converts a certified density into a
 rational point cloud and validates it against wand125/square-packing-bounds's
 independent point-based verifier -- a different author's implementation, not
-modified or vendored here. Clone
+modified or vendored here. **This path is unlikely to succeed.** The converter
+moves each grid cell's mass to the cell's center; for cells straddling a
+rectangle boundary, that relocation changes the coverage right near the
+boundary, and preserving the total weight does not preserve the original
+density's thin margin there. In-repo testing on a comparable certificate found
+`NOT VERIFIED` at both spacings tried (1/32 and 1/64). Treat this as a
+diagnostic tool for inspecting a converted point cloud, not as an expected
+independent confirmation. Clone
 [wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds)
 and pass its checker explicitly:
 
