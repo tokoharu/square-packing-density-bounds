@@ -1,5 +1,5 @@
 {
-  "source": "/home/tokoharu/claude_environment/workspace/square_in_square/engine_2/runs/bc_20260921_212024/certificate/certified_candidate.json",
+  "source": "workspace/square_in_square/engine_2/runs/bc_20260921_212024/certificate/certified_candidate.json",
   "density_sha256": "9148d80047b42f3ed6d3cfab9ced6bf78ca4c4983b79bd97f1ed3ee3003a05e3",
   "plotted_mass": 28.687939703192637,
   "mass": 28.68793970325502,

@@ -9985,9 +9985,9 @@
     }
   ],
   "config": {
-    "seed": "/home/tokoharu/claude_environment/workspace/square_in_square/engine_2/runs/bc_20260921_205321/candidate.json",
-    "poses": "/home/tokoharu/claude_environment/workspace/square_in_square/engine_2/runs/bc_20260921_205321/constraints.npz",
-    "out": "/home/tokoharu/claude_environment/workspace/square_in_square/engine_2/runs/bc_20260921_211648",
+    "seed": "workspace/square_in_square/engine_2/runs/bc_20260921_205321/candidate.json",
+    "poses": "workspace/square_in_square/engine_2/runs/bc_20260921_205321/constraints.npz",
+    "out": "workspace/square_in_square/engine_2/runs/bc_20260921_211648",
     "backend": "highs",
     "basis": null,
     "cycles": 2,
