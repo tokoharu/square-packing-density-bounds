@@ -17,7 +17,7 @@ a public repository by a different author that this work builds on
 
 | `n` | point-mass certificate (wand125/square-packing-bounds) | this repository | improvement |
 |---|---|---|---|
-| 11 | not covered | **3.81** | new |
+| 11 | - | **3.81** | - |
 | 26 | 5.45 | **5.508** | +0.058 |
 | 29 | 5.57 | **5.71** | +0.14 |
 
