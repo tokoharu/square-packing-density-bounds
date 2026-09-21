@@ -21,6 +21,13 @@ a public repository by a different author that this work builds on
 | 26 | 5.45 | **5.508** | +0.058 |
 | 29 | 5.57 | **5.71** | +0.14 |
 
+![The n=29 density: 137 D4-symmetrized rectangles at L=5.71, active rectangles shaded by weight](certificates/cert_n29_L571/solution.png)
+
+The `n = 29` density (137 rectangles, 69 with positive weight after solving)
+at `L = 5.71`. Darker shading is higher weight; see
+[Verifying the certificates](#verifying-the-certificates) below for how this
+is turned into a rigorous bound.
+
 ## How this differs from wand125/square-packing-bounds
 
 wand125/square-packing-bounds's argument scatters finitely many *points*,
@@ -50,6 +57,17 @@ so the rectangle basis is strictly more expressive -- it is what makes the
 improved bounds above possible.
 
 ## Verifying the certificates
+
+The full mathematical argument for why `verify.cpp` is rigorous --
+the density construction, the reduction from all uncountably many square
+placements to a finite rational angle net, the reduction of each angle's
+center-position search to a quadrant (via 90-degree rotation symmetry of
+both the density and the square, not reflection -- reflection flips the
+angle's sign and does not justify this), the branch-and-bound argument with
+certified interval derivative bounds, and the soundness of the outward-rounded
+interval arithmetic itself -- is written up in
+[`docs/continuous-density-certificate.ja.md`](docs/continuous-density-certificate.ja.md)
+(Japanese). Section 4 walks through `verify.cpp` line range by line range.
 
 Each directory under `certificates/` is self-contained: the density
 certificate (`certified_candidate.json`), the exact input consumed by the
@@ -131,7 +149,7 @@ certificates/      the three certificates, each self-contained and independently
 src/                search engine (LP row/column generation) and the interval-arithmetic verifier
 src/examples/       a small starting basis and pose set used as engine.py's defaults
 tests/              unit tests for the geometry, LP incremental-update, and search logic
-docs/               design notes for the interval-arithmetic global verifier
+docs/               continuous-density-certificate.ja.md: full rigor proof for the verifier
 ```
 
 ## Attribution
