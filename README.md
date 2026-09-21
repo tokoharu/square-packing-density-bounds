@@ -98,8 +98,8 @@ approximation accepted within tolerance.
 
 Cross-check: `src/point_export.py` converts a certified density into a
 rational point cloud and validates it against wand125/square-packing-bounds's
-independent point-based verifier -- a different author's implementation, not
-modified or vendored here. **This path is unlikely to succeed.** The converter
+independent point-based verifier, run unmodified from an external clone.
+**This path is unlikely to succeed.** The converter
 moves each grid cell's mass to the cell's center; for cells straddling a
 rectangle boundary, that relocation changes the coverage right near the
 boundary, and preserving the total weight does not preserve the original
@@ -166,14 +166,22 @@ docs/               continuous-density-certificate.ja.md: full rigor proof for t
 
 ## Attribution
 
-This repository extends the weighted unavoidable-set method used in
+This repository generalizes the point-mass weighted unavoidable-set argument in
 [wand125/square-packing-bounds](https://github.com/wand125/square-packing-bounds/tree/8ec3d79167ac422f21cc38d96e0dd7a8f5c22ed4)
-(a different author's public repository, pinned to the commit above) from point atoms to a rectangle-density
-basis. See that repository's own README for attribution of the underlying method
-to Walter Stromquist, Hiroshi Nagamochi, Sam Burns, and Gustavo Massaccesi, and
-to [jlevy/squares](https://github.com/jlevy/squares). No code from
-wand125/square-packing-bounds is copied into this repository; the cross-check
-above invokes it as an external, independently cloned dependency.
+-- same method, same `B(1+D)<1` angle net on 201 directions, same D4
+symmetrization -- from point atoms to a rectangle-density basis, and replaces
+its floating-point Condition 5 threshold check with the outward-rounded
+interval-arithmetic verifier here. See that repository's own README for the
+full account, including its attribution of the underlying method to
+Walter Stromquist (unavoidable point sets with unit weights), Hiroshi
+Nagamochi (hand-tuned weighted score systems), Sam Burns and Gustavo
+Massaccesi (the fractional weights and the exact rational direction net with
+the `B(1+D)<1` shrink that this repository's own angle net also uses), and to
+[jlevy/squares](https://github.com/jlevy/squares) (row generation via a
+separation oracle, dual-priced column generation, and branch-and-bound as a
+second Condition 5 decider). No code from wand125/square-packing-bounds is
+vendored in this repository; the cross-check above clones it as an external
+dependency.
 
 ## Status
 
