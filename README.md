@@ -89,6 +89,18 @@ PYTHONPATH=src python3 src/point_export.py \
   --validator /tmp/square-packing-bounds/src/verify.py --validate
 ```
 
+For a stronger independent check of the resulting point cloud, run it through
+[jlevy/squares](https://github.com/jlevy/squares), which decides the covering
+condition in exact integers rather than a floating-point threshold.
+wand125/square-packing-bounds' `src/check_with_sqpack.py` adapts the point-cert
+JSON to the input jlevy/squares expects:
+
+```bash
+git clone https://github.com/jlevy/squares.git /tmp/squares
+cp /tmp/square-packing-bounds/src/check_with_sqpack.py /tmp/cert_n29_points.json /tmp/squares/
+cd /tmp/squares && python3 check_with_sqpack.py cert_n29_points.json
+```
+
 ## Finding new certificates
 
 Requires Python 3.10+, NumPy, SciPy, Numba, `highspy`. See `requirements.txt`.
