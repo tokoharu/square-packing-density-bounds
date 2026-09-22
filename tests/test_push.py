@@ -43,8 +43,8 @@ class PushTests(unittest.TestCase):
             self.assertTrue(certified(d))
 
     def test_generated_poses_are_in_the_normalised_pose_box(self):
-        # net_pose returns (u, v, angle) normalised to [0,1]^3, not raw centres,
-        # so that is what the LP indexes and what has to come out of here.
+        # geometry.matrix indexes (u, v, angle) with xy in [-1,1] and angle in
+        # [0,1] and rejects anything outside, so that is what has to come out.
         L, B = 5.71, 0.9977
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / 'poses.npz'
@@ -52,11 +52,14 @@ class PushTests(unittest.TestCase):
             poses = np.load(out)['poses']
         self.assertEqual(len(poses), count)
         self.assertEqual(poses.shape[1], 3)
-        self.assertTrue((poses >= 0).all())
-        self.assertTrue((poses <= 1).all())
-        # a grid spanning the admissible centres must reach both extremes
-        self.assertAlmostEqual(poses[:, 0].min(), 0.0, places=9)
+        self.assertLessEqual(np.abs(poses[:, :2]).max(), 1.0)
+        self.assertGreaterEqual(poses[:, 2].min(), 0.0)
+        self.assertLessEqual(poses[:, 2].max(), 1.0)
+        # a grid over the admissible centres must reach both extremes, and the
+        # negative half is exactly what net_pose's clip would have thrown away
+        self.assertAlmostEqual(poses[:, 0].min(), -1.0, places=9)
         self.assertAlmostEqual(poses[:, 0].max(), 1.0, places=9)
+        self.assertTrue((poses[:, :2] < 0).any())
         # the angle coordinate covers the net from 0 up to pi/4
         self.assertAlmostEqual(poses[:, 2].min(), 0.0, places=9)
         self.assertGreater(poses[:, 2].max(), 0.9)

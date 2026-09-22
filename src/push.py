@@ -42,20 +42,33 @@ def run(cmd, cwd=SRC, quiet=True):
 
 
 def make_poses(L, B, out, angle_step=5, grid=18):
-    """Admissible centres on a grid, at every `angle_step`-th net angle."""
-    sys.path.insert(0, str(SRC))
+    """Admissible centres on a grid, at every `angle_step`-th net angle.
+
+    Poses are the normalised triples geometry.matrix indexes: the centre
+    offset from the container's middle, divided by how far it may travel at
+    that angle, so xy runs over [-1, 1]; and the angle as a fraction of pi/4,
+    over [0, 1]. (global_separation.net_pose computes the same thing but then
+    clips xy to [0, 1], because the separation oracle only ever hands back
+    first-quadrant witnesses -- that clip would collapse half of a full grid
+    onto the axes.)
+    """
     import numpy as np
-    from global_separation import net_pose
     rows = []
     for r in range(0, 201, angle_step):
         t = 2 * math.atan(r * 83 / 40000)
         c, s = math.cos(t), math.sin(t)
-        a = B * (c + s) / 2
-        lo, hi = a, L - a
+        extent = (L - B * (c + s)) / 2
+        if extent <= 0:
+            continue
+        angle = t / (math.pi / 4)
         for i in range(grid + 1):
+            u = -1 + 2 * i / grid
             for j in range(grid + 1):
-                rows.append(net_pose(r, lo + (hi - lo) * i / grid,
-                                     lo + (hi - lo) * j / grid, L, B))
+                v = -1 + 2 * j / grid
+                if angle > 1:            # last node sits just past pi/4
+                    rows.append((v, u, 2 - angle))
+                else:
+                    rows.append((u, v, angle))
     P = np.asarray(rows, dtype=float).reshape(-1, 3)
     np.savez_compressed(out, poses=P)
     return len(P)
@@ -69,6 +82,23 @@ def rung_tag(L):
     from it afterwards.
     """
     return f'{float(L):.8f}'.rstrip('0').rstrip('.').replace('.', '_')
+
+
+def axis_poses_representable(L, B, rectangles):
+    """Would geometry.axis_poses stay inside the box geometry.matrix accepts?"""
+    sys.path.insert(0, str(SRC))
+    import numpy as np
+    from geometry import Geometry
+    try:
+        g = Geometry(L, B, rectangles)
+    except Exception:
+        return False
+    coords = np.unique(g.full[:, [0, 2]].ravel())
+    centres = np.r_[L / 2, L - B / 2, coords - B / 2, coords + B / 2]
+    centres = centres[(centres >= L / 2) & (centres <= L - B / 2)]
+    if not len(centres):
+        return False
+    return float(((centres - L / 2) / ((L - B) / 2)).max()) <= 1.0
 
 
 def certified(d):
@@ -133,6 +163,15 @@ def attempt(n, L, parent_cert, work, rung, cycles, rounds, workers):
 
     npz = d / 'poses.npz'
     make_poses(float(L), float(src['B']), npz)
+
+    # geometry.axis_poses divides centres by (L-B)/2 and geometry.matrix then
+    # rejects anything above 1. The centre L-B/2 normalises to exactly 1, so
+    # for some L it lands a rounding step above and the engine dies on its own
+    # generator before doing any work. Skip those sides rather than spend the
+    # ladder's step budget halving into them.
+    if not axis_poses_representable(float(L), float(src['B']),
+                                    [tuple(r) for r in src['rectangles']]):
+        return None, 'AXIS_POSES_OUT_OF_RANGE' 
 
     ok, why = search(cand, npz, d / 'search', cycles, rounds)
     if not ok:
