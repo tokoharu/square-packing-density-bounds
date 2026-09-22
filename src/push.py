@@ -126,14 +126,28 @@ def seed(n, work):
     return out / 'candidate.json'
 
 
+# What geometry.matrix raises when an axis pose lands a rounding step outside
+# the box it accepts. attempt()'s pre-check predicts this from the rung's
+# starting rectangles, but engine.py's own column generation can introduce
+# axis poses the pre-check never saw -- so a run can still hit this deep
+# inside --global-check. Recognising the message here means that case is
+# still reported as AXIS_POSES_OUT_OF_RANGE instead of a generic engine
+# failure, regardless of whether the pre-check predicted it.
+AXIS_POSE_ERROR = 'Pose=(normalized cx,cy,theta); xy in [-1,1], theta in [0,1]'
+
+
 def search(candidate, poses, out, cycles, rounds):
     """engine.py: grow the basis until every net angle screens clean."""
     ok, tail = run(['engine.py', '--seed', str(candidate), '--poses', str(poses),
                     '--out', str(out), '--cycles', str(cycles), '--b-rounds', '3',
                     '--global-check', '--global-rounds', str(rounds)])
     if not ok:
-        reason = ('REPAIR_DID_NOT_CONVERGE' if 'screening incomplete' in tail
-                  else 'ENGINE_FAILED')
+        if AXIS_POSE_ERROR in tail:
+            reason = 'AXIS_POSES_OUT_OF_RANGE'
+        elif 'screening incomplete' in tail:
+            reason = 'REPAIR_DID_NOT_CONVERGE'
+        else:
+            reason = 'ENGINE_FAILED'
         return False, reason
     return True, 'SCREENED'
 
@@ -215,9 +229,17 @@ def main():
         c = seed(a.n, work)
         if not c:
             return 1
-        L0 = F(str(json.loads(c.read_text())['L']))
+        cand = json.loads(c.read_text())
+        L0 = F(str(cand['L']))
         npz = work / 'seed_poses.npz'
-        make_poses(float(L0), float(json.loads(c.read_text())['B']), npz)
+        make_poses(float(L0), float(cand['B']), npz)
+        # Same danger zone attempt() guards against: a fresh seed for a large n
+        # can itself land at an axis pose geometry.matrix rejects, which would
+        # otherwise kill the very first search before it does any work.
+        if not axis_poses_representable(float(L0), float(cand['B']),
+                                        [tuple(r) for r in cand['rectangles']]):
+            log(step='start', status='AXIS_POSES_OUT_OF_RANGE')
+            return 1
         ok, why = search(c, npz, work / 'seed_search', a.cycles, a.rounds)
         if not ok:
             log(step='start', status=why)
@@ -226,6 +248,12 @@ def main():
                         work / 'seed_cert', a.workers)
         if not ok:
             log(step='start', status='CERTIFY_FAILED')
+            return 1
+        # certify.py deliberately doesn't check this; attempt() does for every
+        # later rung, so the seed certificate needs the same guard.
+        m = json.loads((work / 'seed_cert' / 'certificate_metadata.json').read_text())
+        if F(m['mass_exact']) >= a.n:
+            log(step='start', status='MASS_NOT_BELOW_N')
             return 1
         best, L = work / 'seed_cert', L0
         log(step='start', source='seed', L=float(L))
