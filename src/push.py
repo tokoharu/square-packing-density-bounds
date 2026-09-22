@@ -28,9 +28,23 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent
 
 
+LOGFILE = None
+
+
 def log(**kw):
+    """Append one JSON record to stdout and, once --out is known, to a file.
+
+    Relying on the caller to redirect stdout loses the whole run record when the
+    redirect is forgotten -- which is how the reason for one n=29 rung halving
+    its step went missing.  The file lives in the run directory, so it survives
+    whatever the shell did or did not do.
+    """
     kw['t'] = round(time.time() - START, 1)
-    print(json.dumps(kw), flush=True)
+    line = json.dumps(kw)
+    print(line, flush=True)
+    if LOGFILE is not None:
+        with open(LOGFILE, 'a') as fh:
+            fh.write(line + '\n')
 
 
 def run(cmd, cwd=SRC, quiet=True):
@@ -101,6 +115,28 @@ def axis_poses_representable(L, B, rectangles):
     return float(((centres - L / 2) / ((L - B) / 2)).max()) <= 1.0
 
 
+def next_step(step, initial, streak, ok, widen_after=2, floor=None):
+    """How wide the next rung should be, and the streak that goes with it.
+
+    Halving on failure without ever widening again makes the step a ratchet: the
+    increment ends up set by the total number of failures, however many rungs
+    have succeeded since.  A transient failure -- a repair that ran out of rounds
+    under load, say -- then costs the rest of the run twice the rungs for the
+    same distance.  Widen back after a couple of clean rungs, never past where
+    the run started, and never narrow below `floor`: a ladder that keeps making
+    progress should not be able to grind its own increment to nothing.
+    """
+    if not ok:
+        narrowed = step / 2
+        if floor is not None and narrowed < floor:
+            narrowed = floor
+        return narrowed, 0
+    streak += 1
+    if streak >= widen_after and step < initial:
+        return min(step * 2, initial), 0
+    return step, streak
+
+
 def certified(d):
     """Is this directory a finished certificate we can advance from?"""
     c = Path(d) / 'certified_candidate.json'
@@ -136,6 +172,21 @@ def seed(n, work):
 AXIS_POSE_ERROR = 'Pose=(normalized cx,cy,theta); xy in [-1,1], theta in [0,1]'
 
 
+def why(tail):
+    """The most specific line of a failed step's output.
+
+    The reason classification above names the *kind* of failure; this keeps the
+    message itself.  Without it a rung that dies after engine.py has already
+    written its whole output directory reports a bare ENGINE_FAILED, which says
+    nothing about whether the side is out of reach or the run hit a bug.  The
+    last non-empty line is where a Python traceback puts its exception, and
+    where a clean early exit puts its message.
+    """
+    lines = [l.rstrip() for l in tail.splitlines() if l.strip()]
+    return lines[-1][:300] if lines else ''
+
+
+
 def search(candidate, poses, out, cycles, rounds):
     """engine.py: grow the basis until every net angle screens clean."""
     ok, tail = run(['engine.py', '--seed', str(candidate), '--poses', str(poses),
@@ -148,8 +199,8 @@ def search(candidate, poses, out, cycles, rounds):
             reason = 'REPAIR_DID_NOT_CONVERGE'
         else:
             reason = 'ENGINE_FAILED'
-        return False, reason
-    return True, 'SCREENED'
+        return False, (reason, why(tail))
+    return True, ('SCREENED', '')
 
 
 def certify(candidate, out, workers):
@@ -185,17 +236,18 @@ def attempt(n, L, parent_cert, work, rung, cycles, rounds, workers):
     # ladder's step budget halving into them.
     if not axis_poses_representable(float(L), float(src['B']),
                                     [tuple(r) for r in src['rectangles']]):
-        return None, 'AXIS_POSES_OUT_OF_RANGE' 
+        return None, ('AXIS_POSES_OUT_OF_RANGE', '')
 
-    ok, why = search(cand, npz, d / 'search', cycles, rounds)
+    ok, (reason, detail) = search(cand, npz, d / 'search', cycles, rounds)
     if not ok:
-        return None, why
+        return None, (reason, detail)
     ok, tail = certify(d / 'search' / 'candidate.json', d / 'cert', workers)
     if not ok:
-        return None, 'CERTIFY_FAILED'
+        return None, ('CERTIFY_FAILED', why(tail))
     m = json.loads((d / 'cert' / 'certificate_metadata.json').read_text())
     if F(m['mass_exact']) >= n:
-        return None, 'MASS_NOT_BELOW_N'
+        return None, ('MASS_NOT_BELOW_N',
+                      f"mass {float(F(m['mass_exact'])):.9f} against budget {n}")
     return d / 'cert', float(m['mass_decimal'])
 
 
@@ -208,7 +260,9 @@ def main():
     ap.add_argument('--target', type=F, help='stop once L reaches this')
     ap.add_argument('--step', type=F, default=F(1, 200))
     ap.add_argument('--min-step', type=F, default=F(1, 12800),
-                    help='give up once halving takes the step below this')
+                    help='never narrow the increment below this')
+    ap.add_argument('--give-up-after', type=int, default=4,
+                    help='stop after this many consecutive failed rungs')
     ap.add_argument('--out', type=Path, required=True,
                     help='working directory; one subdirectory per accepted rung')
     ap.add_argument('--cycles', type=int, default=3)
@@ -216,10 +270,18 @@ def main():
                     help='global repair rounds; raise before lowering the step')
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--max-rungs', type=int, default=40)
+    ap.add_argument('--widen-after', type=int, default=2,
+                    help='double the step again after this many clean rungs')
     a = ap.parse_args()
 
     work = a.out.resolve()
     work.mkdir(parents=True, exist_ok=True)
+    global LOGFILE
+    LOGFILE = work / 'push.jsonl'
+    log(step='launch', n=a.n, target=float(a.target) if a.target else None,
+        step_size=str(a.step), min_step=str(a.min_step), rounds=a.rounds,
+        give_up_after=a.give_up_after, widen_after=a.widen_after,
+        source=str(a.start) if a.start else 'seed', log=str(LOGFILE))
 
     if a.start and certified(a.start):
         best = Path(a.start).resolve()
@@ -240,9 +302,10 @@ def main():
                                         [tuple(r) for r in cand['rectangles']]):
             log(step='start', status='AXIS_POSES_OUT_OF_RANGE')
             return 1
-        ok, why = search(c, npz, work / 'seed_search', a.cycles, a.rounds)
+        ok, (reason, detail) = search(c, npz, work / 'seed_search',
+                                      a.cycles, a.rounds)
         if not ok:
-            log(step='start', status=why)
+            log(step='start', status=reason, detail=detail)
             return 1
         ok, _ = certify(work / 'seed_search' / 'candidate.json',
                         work / 'seed_cert', a.workers)
@@ -259,6 +322,8 @@ def main():
         log(step='start', source='seed', L=float(L))
 
     step = a.step
+    streak = 0
+    consecutive = 0
     for rung in range(a.max_rungs):
         if a.target is not None and L >= a.target:
             log(step='done', status='TARGET_REACHED', best_L=float(L))
@@ -271,11 +336,26 @@ def main():
             best, L = got, nxt
             log(step='rung', L=float(nxt), status='ACCEPTED', mass=info,
                 budget=a.n, increment=str(step))
+            consecutive = 0
+            was = step
+            step, streak = next_step(step, a.step, streak, True, a.widen_after,
+                                     a.min_step)
+            if step != was:
+                log(step='widen', increment=str(step))
             continue
-        log(step='rung', L=float(nxt), status=info, increment=str(step))
-        step /= 2
-        if step < a.min_step:
-            log(step='done', status='STEP_EXHAUSTED', best_L=float(L))
+        status, detail = info
+        consecutive += 1
+        log(step='rung', L=float(nxt), status=status, detail=detail,
+            increment=str(step), consecutive=consecutive)
+        step, streak = next_step(step, a.step, streak, False, a.widen_after,
+                                 a.min_step)
+        # Stop on repeated failure at one place, not on a tally of failures over
+        # the whole run.  Counting every failure ends a ladder that is still
+        # making progress -- n=26 and n=39 each failed a rung to --global-rounds
+        # being too low, then climbed several more once it was raised.
+        if consecutive >= a.give_up_after:
+            log(step='done', status='STUCK', best_L=float(L),
+                consecutive=consecutive)
             break
     else:
         log(step='done', status='MAX_RUNGS', best_L=float(L))

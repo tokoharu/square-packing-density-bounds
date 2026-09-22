@@ -5,3 +5,4 @@ __pycache__/
 *.log
 src/verify
 certificates/*/verify
+runs/
