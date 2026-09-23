@@ -39,12 +39,24 @@ def log(**kw):
     its step went missing.  The file lives in the run directory, so it survives
     whatever the shell did or did not do.
     """
+    kw['run'] = RUN_ID
     kw['t'] = round(time.time() - START, 1)
     line = json.dumps(kw)
     print(line, flush=True)
+    global LOGFILE
     if LOGFILE is not None:
-        with open(LOGFILE, 'a') as fh:
-            fh.write(line + '\n')
+        try:
+            with open(LOGFILE, 'a') as fh:
+                fh.write(line + '\n')
+        except OSError as e:
+            # The whole point of this file is to survive what the shell does or
+            # does not do; it must not itself become a way to kill a run whose
+            # actual computation just succeeded. Report the failure once on
+            # stdout and stop trying, rather than raising on every later call.
+            print(json.dumps({'step': 'log', 'status': 'LOGFILE_WRITE_FAILED',
+                              'error': str(e), 'run': RUN_ID,
+                              't': round(time.time() - START, 1)}), flush=True)
+            LOGFILE = None
 
 
 def run(cmd, cwd=SRC, quiet=True):
@@ -207,7 +219,16 @@ def certify(candidate, out, workers):
     """certify.py: exact interval verification of all 201 angles."""
     ok, tail = run(['certify.py', str(candidate), '--out', str(out),
                     '--workers', str(workers)])
-    return (ok and certified(out)), tail
+    if not ok:
+        return False, tail
+    if not certified(out):
+        # certify.py exited 0, so `tail` is its normal completion output, not
+        # an error -- returning it as the failure detail would make a rejected
+        # certificate look like a benign success line.
+        return False, ('certify.py exited 0 but certified_candidate.json / '
+                       'verification_summary.json did not confirm global '
+                       'verification')
+    return True, tail
 
 
 def attempt(n, L, parent_cert, work, rung, cycles, rounds, workers):
@@ -307,10 +328,10 @@ def main():
         if not ok:
             log(step='start', status=reason, detail=detail)
             return 1
-        ok, _ = certify(work / 'seed_search' / 'candidate.json',
-                        work / 'seed_cert', a.workers)
+        ok, tail = certify(work / 'seed_search' / 'candidate.json',
+                          work / 'seed_cert', a.workers)
         if not ok:
-            log(step='start', status='CERTIFY_FAILED')
+            log(step='start', status='CERTIFY_FAILED', detail=why(tail))
             return 1
         # certify.py deliberately doesn't check this; attempt() does for every
         # later rung, so the seed certificate needs the same guard.
@@ -365,5 +386,11 @@ def main():
 
 
 START = time.time()
+# Resuming a run into the same --out intermixes its push.jsonl lines with the
+# previous run's, and 't' restarts near 0 each time, so nothing but a 'launch'
+# line marked where one run ended and the next began. Every record carries
+# this instead, so records from different invocations stay distinguishable
+# even interleaved in the same file.
+RUN_ID = f'{time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(START))}-{os.getpid()}'
 if __name__ == '__main__':
     raise SystemExit(main())
